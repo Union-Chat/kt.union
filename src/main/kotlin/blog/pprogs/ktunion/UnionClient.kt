@@ -21,7 +21,7 @@ class Context(val server: Int, val socket: WebSocket, val command: Command, val 
 }
 
 @Suppress("MemberVisibilityCanBePrivate")
-class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val listen: Boolean = false) : WebSocketListener() {
+class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false) : WebSocketListener() {
     var servers = mutableListOf<Int>()
     var socket: WebSocket? = null
     var messages = mutableMapOf<String, String>()
@@ -97,7 +97,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     override fun onOpen(webSocket: WebSocket?, response: Response?) {
         socket = webSocket
         onConnect()
-        if (!listen) {
+        if (!silent) {
             thread {
                 while (true) {
                     sendMessage(onBeforeMessageSent(readLine()!!))
@@ -107,7 +107,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     }
 
     fun sendMessage(text: String, server: Int = 1) {
-        send(mapOf("server" to server, "content" to text))
+        if (!silent) send(mapOf("server" to server, "content" to text))
     }
 
     override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
@@ -157,16 +157,18 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
             return
         }
 
-        if (selfbot && who != "perryprog") {
-            sendMessage("It's called a selfboat for a reason, heck off.")
-            return
-        }
-
 
         val commandString = content.substring(1).split(" ")[0].toLowerCase()
         val args = content.split(' ').drop(1)
 
         val command = commands.filterKeys({ it.name == commandString })
+
+        if (command.isEmpty()) return
+
+        if (selfbot && who != username) {
+            sendMessage("It's called a selfboat for a reason, heck off.")
+            return
+        }
 
         val context = Context(
                 server,
