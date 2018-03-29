@@ -21,7 +21,7 @@ class Context(val server: Int, val socket: WebSocket, val command: Command, val 
 }
 
 @Suppress("MemberVisibilityCanBePrivate")
-class UnionClient(val selfbot: Boolean = false, val username: String, val password: String) : WebSocketListener() {
+class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val listen: Boolean = false) : WebSocketListener() {
     var servers = mutableListOf<Int>()
     var socket: WebSocket? = null
     var messages = mutableMapOf<String, String>()
@@ -97,9 +97,11 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     override fun onOpen(webSocket: WebSocket?, response: Response?) {
         socket = webSocket
         onConnect()
-        thread {
-            while (true) {
-                sendMessage(onBeforeMessageSent(readLine()!!))
+        if (!listen) {
+            thread {
+                while (true) {
+                    sendMessage(onBeforeMessageSent(readLine()!!))
+                }
             }
         }
     }
