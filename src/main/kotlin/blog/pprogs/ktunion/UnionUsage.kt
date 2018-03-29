@@ -7,9 +7,11 @@ import groovy.lang.Binding
 import groovy.lang.GroovyShell
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
 
 fun main(args: Array<String>) {
-    val client = UnionClient(selfbot = true, username = "perryprog", password = "BL5-HWg-gzS-PcV")
+    val things = File("thing.txt").readLines()
+    val client = UnionClient(selfbot = true, username = things[0], password = things[1])
 
     client.onConnect = {
         println("Connected")

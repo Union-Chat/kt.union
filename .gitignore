@@ -1,4 +1,5 @@
 .idea
+thing.txt # password file
 
 # Created by https://www.gitignore.io/api/gradle,kotlin
 
