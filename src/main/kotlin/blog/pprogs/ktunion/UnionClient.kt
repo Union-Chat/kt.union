@@ -21,7 +21,7 @@ class Context(val server: Int, val socket: WebSocket, val command: Command, val 
 }
 
 @Suppress("MemberVisibilityCanBePrivate")
-class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false) : WebSocketListener() {
+class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false, val mock: Boolean = false) : WebSocketListener() {
     var servers = mutableListOf<Int>()
     var socket: WebSocket? = null
     var messages = mutableMapOf<String, String>()
@@ -54,39 +54,49 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
 
     //    @JvmStatic
     fun start() {
-        val client = OkHttpClient.Builder()
-                .readTimeout(0, TimeUnit.MILLISECONDS)
-                .build()
-        val request = Request.Builder()
-                .url("ws://union.serux.pro:2082")
-                .header("Authorization", "Basic ${"$username:$password".encode()}")
-                .build()
-
-        client.newWebSocket(request, this)
-
-        // Trigger shutdown of the dispatcher's executor so this process can exit cleanly.
-        client.dispatcher().executorService().shutdown()
-
-        commands.apply {
-
-            put(Command("ping", "A simple ping command")) { ctx ->
-                ctx.reply("ur face is a pong!1!11!")
-            }
-
-            put(Command("help", "What you're reading")) { ctx ->
-                if (ctx.args.size == 1) {
-                    val result = commands.keys.firstOrNull { it.name == ctx.args.first() }
-                    if (result == null) {
-                        sendMessage("No results for that command found.")
-                    } else {
-                        sendMessage("Help description for $: ${result.help}")
-                    }
+        if (mock) {
+            thread {
+                while (true) {
+                    val options = listOf("wow a message", "this is a long message " * 30)
+                    onTextMessage("not a person", options.random(), "id")
+                    Thread.sleep(2000)
                 }
-                var final = "Here are my commands:\n\n"
-                commands.keys.forEach { final += String.format("%-20s %s%n", it.name, it.help) }
-                sendMessage(final)
             }
+        } else {
+            val client = OkHttpClient.Builder()
+                    .readTimeout(0, TimeUnit.MILLISECONDS)
+                    .build()
+            val request = Request.Builder()
+                    .url("wss://union.serux.pro:2096")
+                    .header("Authorization", "Basic ${"$username:$password".encode()}")
+                    .build()
 
+            client.newWebSocket(request, this)
+
+            // Trigger shutdown of the dispatcher's executor so this process can exit cleanly.
+            client.dispatcher().executorService().shutdown()
+
+            commands.apply {
+
+                put(Command("ping", "A simple ping command")) { ctx ->
+                    ctx.reply("ur face is a pong!1!11!")
+                }
+
+                put(Command("help", "What you're reading")) { ctx ->
+                    if (ctx.args.size == 1) {
+                        val result = commands.keys.firstOrNull { it.name == ctx.args.first() }
+                        if (result == null) {
+                            sendMessage("No results for that command found.")
+                        } else {
+                            sendMessage("Help description for $: ${result.help}")
+                        }
+                    }
+                    var final = "Here are my commands:\n\n"
+                    commands.keys.forEach { final += String.format("%-20s %s%n", it.name, it.help) }
+                    sendMessage(final)
+                }
+
+            }
         }
     }
 
@@ -191,4 +201,12 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     }
 
 
+}
+
+fun <E> List<E>.random(): E {
+    return get(Random().nextInt(size))
+}
+
+private operator fun String.times(i: Int): String {
+    return this.repeat(i)
 }
