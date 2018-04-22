@@ -10,7 +10,7 @@ import okhttp3.Request
 import java.io.File
 
 fun main(args: Array<String>) {
-    val things = File("thing.txt").readLines()
+    val things = File("creds.txt").readLines()
     val client = UnionClient(selfbot = true, username = things[0], password = things[1])
 
     client.onConnect = {
