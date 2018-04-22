@@ -1,7 +1,7 @@
 .idea
 
 # password file
-thing.txt
+creds.txt
 
 # Created by https://www.gitignore.io/api/gradle,kotlin
 

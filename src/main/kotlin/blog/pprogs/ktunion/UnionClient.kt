@@ -12,6 +12,8 @@ fun String.encode(): String {
 
 class Message(val op: Int, val d: Any)
 
+class TextMessage(val content: String, val server: Int = 1)
+
 class Command(val name: String, val help: String)
 
 class Context(val server: Int, val socket: WebSocket, val command: Command, val args: List<String>, val sender: String, val client: UnionClient, val data: Message) {
@@ -25,6 +27,10 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     var servers = mutableListOf<Int>()
     var socket: WebSocket? = null
     var messages = mutableMapOf<String, String>()
+
+    private var authString = "Basic ${"$username:$password".encode()}"
+
+    lateinit var client: OkHttpClient
 
     val commands = mutableMapOf<Command, (Context) -> Unit>()
     val clientSideCommands = mutableMapOf<Command, (List<String>) -> Unit>()
@@ -63,12 +69,12 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
                 }
             }
         } else {
-            val client = OkHttpClient.Builder()
+            client = OkHttpClient.Builder()
                     .readTimeout(0, TimeUnit.MILLISECONDS)
                     .build()
             val request = Request.Builder()
                     .url("wss://union.serux.pro:2096")
-                    .header("Authorization", "Basic ${"$username:$password".encode()}")
+                    .header("Authorization", authString)
                     .build()
 
             client.newWebSocket(request, this)
@@ -116,8 +122,21 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
         }
     }
 
-    fun sendMessage(text: String, server: Int = 1) {
-        if (!silent) send(mapOf("server" to server, "content" to text))
+    fun sendMessage(text: String, server: Int = 1): Response? {
+//        if (!silent) send(mapOf("server" to server, "content" to text))
+        if (!silent) {
+            val req = Request.Builder()
+                    .url("https://union.serux.pro/api/message")
+                    .post(
+                            RequestBody.create(MediaType.parse("application/json; charset=utf-8"),
+                                    Klaxon().toJsonString(TextMessage(text, server)))
+                    )
+                    .header("Authorization", authString)
+                    .build()
+
+            return client.newCall(req).execute()
+        }
+        return null
     }
 
     override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
