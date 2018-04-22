@@ -23,7 +23,7 @@ class Context(val server: Int, val socket: WebSocket, val command: Command, val 
 }
 
 @Suppress("MemberVisibilityCanBePrivate")
-class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false, val mock: Boolean = false) : WebSocketListener() {
+class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false, val mock: Boolean = false, val bot: Boolean = true) : WebSocketListener() {
     var servers = mutableListOf<Int>()
     var socket: WebSocket? = null
     var messages = mutableMapOf<String, String>()
@@ -180,9 +180,9 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
 
     private fun handleMessage(who: String, content: String, server: Int, data: Message, id: String) {
         onTextMessage(who, content, id)
-        messages.put(id, content)
+        messages[id] = content
 
-        if (!content.startsWith(">")) {
+        if (!bot || !content.startsWith(">")) {
             return
         }
 
