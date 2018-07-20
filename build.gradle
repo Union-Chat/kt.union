@@ -1,5 +1,5 @@
 buildscript {
-    ext.kotlin_version = '1.2.31'
+    ext.kotlin_version = '1.2.51'
 
     repositories {
         mavenCentral()
@@ -27,11 +27,10 @@ repositories {
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    testCompile group: 'junit', name: 'junit', version: '4.12'
-    compile 'com.squareup.okhttp3:okhttp:3.10.0'
-    compile 'org.codehaus.groovy:groovy:2.6.0-alpha-3'
+    compile 'com.squareup.okhttp3:okhttp:3.11.0'
+    compile 'org.codehaus.groovy:groovy:3.0.0-alpha-3'
     compile "com.andreapivetta.kolor:kolor:0.0.2"
-    implementation 'com.beust:klaxon:2.1.14'
+    implementation 'com.beust:klaxon:3.0.1'
 }
 
 compileKotlin {

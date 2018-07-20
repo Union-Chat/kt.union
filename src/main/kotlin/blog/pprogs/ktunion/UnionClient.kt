@@ -151,13 +151,15 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     override fun onMessage(webSocket: WebSocket?, text: String?) {
         onRawWSMessage(text!!)
 
-        val jsonConverter = object : Converter<Message> {
-            override fun fromJson(jv: JsonValue): Message {
+        val jsonConverter = object: Converter {
+            override fun canConvert(cls: Class<*>): Boolean = cls == Message::class.java
+
+            override fun fromJson(jv: JsonValue): Any {
                 return Message(jv.objInt("op"), jv.obj!!["d"]!!)
             }
 
-            override fun toJson(value: Message): String? {
-                return """{d: ${value.d}, op: ${value.op}"""
+            override fun toJson(value: Any): String {
+                return """{d: ${(value as Message).d}, op: ${value.op}"""
             }
         }
 
