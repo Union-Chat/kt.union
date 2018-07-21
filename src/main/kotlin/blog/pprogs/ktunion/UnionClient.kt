@@ -12,9 +12,13 @@ fun String.encode(): String {
 
 class Message(val op: Int, val d: Any)
 
-class TextMessage(val content: String, val server: Int = 1)
+class TextMessage(val content: String)
 
 class Command(val name: String, val help: String)
+
+class Member(val id: String, val online: Boolean, val avatarUrl: String = "http://union.serux.pro/default_avatar.png")
+
+class Server(val id: Int, val members: List<Member>, val iconUrl: String, val name: String, val owner: String)
 
 class Context(val server: Int, val socket: WebSocket, val command: Command, val args: List<String>, val sender: String, val client: UnionClient, val data: Message) {
     fun reply(message: String) {
@@ -24,7 +28,7 @@ class Context(val server: Int, val socket: WebSocket, val command: Command, val 
 
 @Suppress("MemberVisibilityCanBePrivate")
 class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false, val mock: Boolean = false, val bot: Boolean = true) : WebSocketListener() {
-    var servers = mutableListOf<Int>()
+    var servers = mutableMapOf<Int, Server>()
     var socket: WebSocket? = null
     var messages = mutableMapOf<String, String>()
 
@@ -44,7 +48,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     var onRawWSMessage: (String) -> Unit = { _ -> }
     var onJsonWSMessage: (Message) -> Unit = { _ -> }
     var onStartClosed: (Int, String?) -> Unit = { _, _ -> }
-    var onTextMessage: (String, String, String) -> Unit = { _, _, _ -> }
+    var onTextMessage: (Member, String, String) -> Unit = { _, _, _ -> }
     val onCommand: (Context) -> Boolean = { _ -> true }
     var onStatusChange: (String, Boolean) -> Unit = { _, _ -> }
     var onMessageDelete: (String, String) -> Unit = { _, _ -> }
@@ -64,7 +68,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
             thread {
                 while (true) {
                     val options = listOf("wow a message", "this is a long message " * 30)
-                    onTextMessage("not a person", options.random(), "id")
+                    onTextMessage(Member("Not a person", true, "yes"), options.random(), "id")
                     Thread.sleep(2000)
                 }
             }
@@ -126,10 +130,10 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
 //        if (!silent) send(mapOf("server" to server, "content" to text))
         if (!silent) {
             val req = Request.Builder()
-                    .url("https://union.serux.pro/api/message")
+                    .url("https://union.serux.pro/api/server/$server/messages")
                     .post(
                             RequestBody.create(MediaType.parse("application/json; charset=utf-8"),
-                                    Klaxon().toJsonString(TextMessage(text, server)))
+                                    Klaxon().toJsonString(TextMessage(text)))
                     )
                     .header("Authorization", authString)
                     .build()
@@ -151,7 +155,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     override fun onMessage(webSocket: WebSocket?, text: String?) {
         onRawWSMessage(text!!)
 
-        val jsonConverter = object: Converter {
+        val jsonConverter = object : Converter {
             override fun canConvert(cls: Class<*>): Boolean = cls == Message::class.java
 
             override fun fromJson(jv: JsonValue): Any {
@@ -171,7 +175,11 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
 
         @Suppress("UNCHECKED_CAST") // we know it'll be ok
         when (data.op) {
-            1 -> (data.d as JsonArray<JsonObject>).forEach { servers.add(it.int("id")!!) }
+            1 -> {
+                Klaxon().parseFromJsonArray<Server>(data.d as JsonArray<JsonObject>)!!.forEach {
+                    servers[it.id] = it
+                }
+            }
             3 -> handleMessage((data.d as JsonObject).string("author")!!, data.d.string("content")!!, data.d.int("server")!!, data, data.d.string("id")!!)
             4 -> onStatusChange((data.d as JsonObject).string("id")!!, data.d.boolean("status")!!)
             6 -> onMessageDelete(data.d as String, messages[data.d]!!)
@@ -181,7 +189,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     }
 
     private fun handleMessage(who: String, content: String, server: Int, data: Message, id: String) {
-        onTextMessage(who, content, id)
+        onTextMessage(servers[server]!!.members.find { it.id == who }!!, content, id)
         messages[id] = content
 
         if (!bot || !content.startsWith(">")) {

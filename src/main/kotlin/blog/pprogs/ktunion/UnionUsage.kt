@@ -22,7 +22,7 @@ fun main(args: Array<String>) {
     }
 
     client.onTextMessage = { who, content, id ->
-        println(String.format("%-100s %s", "<$who${if (who == client.username) "*" else ""}> $content", id.blue()))
+        println(String.format("%-100s %s", "<${who.id}${if (who.id== client.username) "*" else ""}> $content", id.blue()))
     }
 
     client.onMessageDelete = { _, content ->
