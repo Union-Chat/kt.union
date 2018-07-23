@@ -5,13 +5,15 @@ import com.andreapivetta.kolor.lightYelllow
 import com.andreapivetta.kolor.red
 import groovy.lang.Binding
 import groovy.lang.GroovyShell
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import org.http4k.client.ApacheClient
+import org.http4k.core.Method
+import org.http4k.core.Request
 import java.io.File
 
 fun main(args: Array<String>) {
     val things = File("creds.txt").readLines()
     val client = UnionClient(selfbot = true, username = things[0], password = things[1])
+    val http = ApacheClient()
 
     client.onConnect = {
         println("Connected")
@@ -59,11 +61,10 @@ fun main(args: Array<String>) {
     }
 
     client.addCommand(Command("weather", "Send the weather!")) {
-        val response = OkHttpClient().newCall(Request.Builder()
-                .url("http://wttr.in/?TQn0")
+        val response = Request(Method.GET, "http://wttr.in/?TQn0")
                 .header("User-Agent", "curl")
-                .build()).execute().body()!!.string()
-        it.reply("​\n$response")
+                .use(http)
+        it.reply("​\n${response.body}")
     }
 
     client.start()

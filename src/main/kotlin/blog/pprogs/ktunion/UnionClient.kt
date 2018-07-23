@@ -1,9 +1,16 @@
 package blog.pprogs.ktunion
 
 import com.beust.klaxon.*
-import okhttp3.*
+import org.http4k.client.ApacheClient
+import org.http4k.client.WebsocketClient
+import org.http4k.core.Method
+import org.http4k.core.Request
+import org.http4k.core.Response
+import org.http4k.core.Uri
+import org.http4k.websocket.Websocket
+import org.http4k.websocket.WsMessage
+import org.http4k.websocket.WsStatus
 import java.util.*
-import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 fun String.encode(): String {
@@ -20,22 +27,27 @@ class Member(val id: String, val online: Boolean, val avatarUrl: String = "http:
 
 class Server(val id: Int, val members: List<Member>, val iconUrl: String, val name: String, val owner: String)
 
-class Context(val server: Int, val socket: WebSocket, val command: Command, val args: List<String>, val sender: String, val client: UnionClient, val data: Message) {
+class Context(val server: Int, val socket: Websocket, val command: Command, val args: List<String>, val sender: String, val client: UnionClient, val data: Message) {
     fun reply(message: String) {
         client.sendMessage(message, server)
     }
 }
 
 @Suppress("MemberVisibilityCanBePrivate")
-class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false, val mock: Boolean = false, val bot: Boolean = true) : WebSocketListener() {
+class UnionClient(val selfbot: Boolean = false, val username: String, val password: String, val silent: Boolean = false, val mock: Boolean = false, val bot: Boolean = true) {
     var servers = mutableMapOf<Int, Server>()
-    var socket: WebSocket? = null
     var messages = mutableMapOf<String, String>()
 
     private var authString = "Basic ${"$username:$password".encode()}"
 
-    lateinit var client: OkHttpClient
-
+    val client = ApacheClient()
+    var socket = WebsocketClient.nonBlocking(
+            Uri.of("wss://union.serux.pro:2096"),
+            listOf(Pair("Authorization", authString)),
+            onConnect = {
+                onOpen()
+            }
+    )
     val commands = mutableMapOf<Command, (Context) -> Unit>()
     val clientSideCommands = mutableMapOf<Command, (List<String>) -> Unit>()
 
@@ -64,6 +76,15 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
 
     //    @JvmStatic
     fun start() {
+
+        socket.onMessage {
+            onMessage(it.bodyString())
+        }
+
+        socket.onError(::onFailure)
+
+        socket.onClose { onClosed(it) }
+
         if (mock) {
             thread {
                 while (true) {
@@ -73,19 +94,6 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
                 }
             }
         } else {
-            client = OkHttpClient.Builder()
-                    .readTimeout(0, TimeUnit.MILLISECONDS)
-                    .build()
-            val request = Request.Builder()
-                    .url("wss://union.serux.pro:2096")
-                    .header("Authorization", authString)
-                    .build()
-
-            client.newWebSocket(request, this)
-
-            // Trigger shutdown of the dispatcher's executor so this process can exit cleanly.
-            client.dispatcher().executorService().shutdown()
-
             commands.apply {
 
                 put(Command("ping", "A simple ping command")) { ctx ->
@@ -111,11 +119,10 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     }
 
     fun send(data: Map<String, Any>, op: Int = 8) {
-        socket!!.send(Klaxon().toJsonString(Message(op, JsonObject(data))))
+        socket.send(WsMessage(Klaxon().toJsonString(Message(op, JsonObject(data)))))
     }
 
-    override fun onOpen(webSocket: WebSocket?, response: Response?) {
-        socket = webSocket
+    fun onOpen() {
         onConnect()
         if (!silent) {
             thread {
@@ -129,30 +136,35 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     fun sendMessage(text: String, server: Int = 1): Response? {
 //        if (!silent) send(mapOf("server" to server, "content" to text))
         if (!silent) {
-            val req = Request.Builder()
-                    .url("https://union.serux.pro/api/server/$server/messages")
-                    .post(
-                            RequestBody.create(MediaType.parse("application/json; charset=utf-8"),
-                                    Klaxon().toJsonString(TextMessage(text)))
-                    )
-                    .header("Authorization", authString)
-                    .build()
+//            val req = Request.Builder()
+//                    .url("https://union.serux.pro/api/server/$server/messages")
+//                    .post(
+//                            RequestBody.create(MediaType.parse("application/json; charset=utf-8"),
+//                                    Klaxon().toJsonString(TextMessage(text)))
+//                    )
+//                    .header("Authorization", authString)
+//                    .build()
 
-            return client.newCall(req).execute()
+            val client1 = Request(Method.POST, "https://union.serux.pro/api/server/$server/messages")
+                    .header("Content-Type", "application/json")
+                    .body(Klaxon().toJsonString(TextMessage(text)))
+                    .header("Authorization", authString)
+                    .use(client)
+
+            return client1
         }
         return null
     }
 
-    override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
-        onError(t)
+    fun onFailure(error: Throwable) {
+        onError(error)
     }
 
-    override fun onClosing(webSocket: WebSocket?, code: Int, reason: String?) {
-        webSocket?.close(code, reason)
-        onStartClosing(code, reason)
+    fun onClosed(status: WsStatus) {
+        onStartClosing(status.code, status.description)
     }
 
-    override fun onMessage(webSocket: WebSocket?, text: String?) {
+    fun onMessage(text: String?) {
         onRawWSMessage(text!!)
 
         val jsonConverter = object : Converter {
@@ -211,7 +223,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
 
         val context = Context(
                 server,
-                socket!!,
+                socket,
                 command.keys.first(),
                 args,
                 who,
@@ -223,12 +235,6 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
 
         command.values.first()(context)
     }
-
-
-    override fun onClosed(webSocket: WebSocket?, code: Int, reason: String?) {
-        onStartClosed(code, reason)
-    }
-
 
 }
 
