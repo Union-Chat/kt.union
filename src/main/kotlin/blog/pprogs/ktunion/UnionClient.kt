@@ -201,7 +201,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
     }
 
     private fun handleMessage(who: String, content: String, server: Int, data: Message, id: String) {
-        onTextMessage(servers[server]!!.members.find { it.id == who }!!, content, id)
+        onTextMessage(servers[server]!!.members.find { it.id == who } ?: Member("Unknown User", false, ""), content, id)
         messages[id] = content
 
         if (!bot || !content.startsWith(">")) {
@@ -212,7 +212,7 @@ class UnionClient(val selfbot: Boolean = false, val username: String, val passwo
         val commandString = content.substring(1).split(" ")[0].toLowerCase()
         val args = content.split(' ').drop(1)
 
-        val command = commands.filterKeys({ it.name == commandString })
+        val command = commands.filterKeys { it.name == commandString }
 
         if (command.isEmpty()) return
 
